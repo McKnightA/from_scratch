@@ -61,7 +61,7 @@ class Softmax(Activation):
         normalizes the array before applying the above equation so that exponential don't explode."""
 
         try:
-            x /= np.mean(x)
+            x -= np.mean(x)
         except Exception:
             print("Found the break on np.mean in softmax forward")
             print(x)
