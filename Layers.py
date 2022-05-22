@@ -1,65 +1,93 @@
 import numpy as np
 
 
-class Layer:
-    # TODO
-    def __init__(self):
-        self.output = None
+# Dense layer
+class Layer_Dense:
+
+    # Layer initialization
+    def __init__(self, n_inputs, n_neurons,
+                 weight_regularizer_l1=0, weight_regularizer_l2=0,
+                 bias_regularizer_l1=0, bias_regularizer_l2=0):
+        # Initialize weights and biases
+        self.weights = 0.01 * np.random.randn(n_inputs, n_neurons)
+        self.biases = np.zeros((1, n_neurons))
+        # Set regularization strength
+        self.weight_regularizer_l1 = weight_regularizer_l1
+        self.weight_regularizer_l2 = weight_regularizer_l2
+        self.bias_regularizer_l1 = bias_regularizer_l1
+        self.bias_regularizer_l2 = bias_regularizer_l2
+
+    # Forward pass
+    def forward(self, inputs, training):
+        # Remember input values
+        self.inputs = inputs
+        # Calculate output values from inputs, weights and biases
+        self.output = np.dot(inputs, self.weights) + self.biases
+
+    # Backward pass
+    def backward(self, dvalues):
+        # Gradients on parameters
+        self.dweights = np.dot(self.inputs.T, dvalues)
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+
+        # Gradients on regularization
+        # L1 on weights
+        if self.weight_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.weights)
+            dL1[self.weights < 0] = -1
+            self.dweights += self.weight_regularizer_l1 * dL1
+        # L2 on weights
+        if self.weight_regularizer_l2 > 0:
+            self.dweights += 2 * self.weight_regularizer_l2 * \
+                             self.weights
+        # L1 on biases
+        if self.bias_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.biases)
+            dL1[self.biases < 0] = -1
+            self.dbiases += self.bias_regularizer_l1 * dL1
+        # L2 on biases
+        if self.bias_regularizer_l2 > 0:
+            self.dbiases += 2 * self.bias_regularizer_l2 * \
+                            self.biases
+
+        # Gradient on values
+        self.dinputs = np.dot(dvalues, self.weights.T)
 
 
-class InputLayer(Layer):
+# Dropout
+class Layer_Dropout:
 
-    def __init__(self):
-        super().__init__()
-        self.output_layers = []
+    # Init
+    def __init__(self, rate):
+        # Store rate, we invert it as for example for dropout
+        # of 0.1 we need success rate of 0.9
+        self.rate = 1 - rate
 
-    def gather_input(self, input_vector):
-        self.output = np.array(input_vector)
+    # Forward pass
+    def forward(self, inputs, training):
+        # Save input values
+        self.inputs = inputs
+
+        # If not in the training mode - return values
+        if not training:
+            self.output = inputs.copy()
+            return
+
+        # Generate and save scaled mask
+        self.binary_mask = np.random.binomial(1, self.rate,
+                                              size=inputs.shape) / self.rate
+        # Apply mask to output values
+        self.output = inputs * self.binary_mask
+
+    # Backward pass
+    def backward(self, dvalues):
+        # Gradient on values
+        self.dinputs = dvalues * self.binary_mask
 
 
-class DenseLayer(Layer):
+# Input "layer"
+class Layer_Input:
 
-    def __init__(self, units, activation, inital_w_std=0.1):
-        super().__init__()
-        self.weights = None
-        self.i_w_std = inital_w_std
-        self.input_layers = None
-        self.bias = np.zeros(units)
-        self.summ = None
-        self.output = np.random.rand(units) - 0.5
-        self.error = None
-        self.output_layers = []
-
-        self.activation = activation
-
-    def gather_input(self, input_layers=None):
-        if input_layers is None:
-            input_layers = []
-        self.input_layers = input_layers
-        for layer in input_layers:
-            layer.output_layers.append(self)
-
-        self.weights = (np.random.normal(0, self.i_w_std, (len(self.bias), len(input_layers[0].output))))
-        self.summ = np.zeros(len(self.bias))
-
-    def calc_output(self):
-        self.summ = self.weights.dot(self.input_layers[0].output)
-        z = self.summ + self.bias
-        self.output = self.activation.forward(z, self)
-
-        return self.output
-
-    def calc_error(self, og_loss=None):
-        if len(self.output_layers) > 0:
-            self.error = self.output_layers[0].weights.T.dot(self.output_layers[0].error) \
-                         * self.activation.backward(self.summ, self)
-        else:
-            self.error = self.activation.backward(self.summ, self) * og_loss
-
-    def update_w_and_b(self, learning_rate, norm_cost=0):
-        w_grad = np.expand_dims(self.error, axis=1).dot(np.expand_dims(self.input_layers[0].output, axis=0)) \
-                 + norm_cost * self.weights
-        b_grad = self.error
-
-        self.weights -= learning_rate * w_grad
-        self.bias -= learning_rate * b_grad
+    # Forward pass
+    def forward(self, inputs, training):
+        self.output = inputs
