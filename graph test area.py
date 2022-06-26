@@ -15,17 +15,21 @@ X, y = spiral_data(samples=1000, classes=3)
 X_test, y_test = spiral_data(samples=100, classes=3)
 
 # Instantiate the model
-model = Model()
+model = GraphModel()
 
 # Add layers
-model.add([Dense(2, 512), Relu()])
-model.add(Dense(512, 3))
-model.add(Softmax())
+l1 = GraphDense(512, Relu())
+l2 = GraphDense(3, Softmax())
+g = {
+    l1: [l2],
+    l2: [l1]
+}
+model.add(g, l1, l2, 2)
 
 # Set loss, optimizer and accuracy objects
 model.set(
     loss=CategoricalCrossentropy(),
-    optimizer=Adam(learning_rate=0.05, decay=5e-5),
+    optimizer=GraphAdam(learning_rate=0.05, decay=5e-5),
     accuracy=Accuracy_Categorical()
 )
 
@@ -33,5 +37,4 @@ model.set(
 model.finalize()
 
 # Train the model
-model.train(X, y, validation_data=(X_test, y_test),
-            epochs=1000, print_every=100)
+model.train(X, y, validation_data=(X_test, y_test), epochs=1000, print_every=10)

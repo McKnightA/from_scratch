@@ -63,7 +63,7 @@ class Loss:
 
 
 # Cross-entropy loss
-class Loss_CategoricalCrossentropy(Loss):
+class CategoricalCrossentropy(Loss):
 
     # Forward pass
     def forward(self, y_pred, y_true):
@@ -78,10 +78,7 @@ class Loss_CategoricalCrossentropy(Loss):
         # Probabilities for target values -
         # only if categorical labels
         if len(y_true.shape) == 1:
-            correct_confidences = y_pred_clipped[
-                range(samples),
-                y_true
-            ]
+            correct_confidences = y_pred_clipped[range(samples), y_true]
 
         # Mask values - only for one-hot encoded labels
         elif len(y_true.shape) == 2:
@@ -108,9 +105,9 @@ class Loss_CategoricalCrossentropy(Loss):
             y_true = np.eye(labels)[y_true]
 
         # Calculate gradient
-        self.dinputs = -y_true / dvalues
+        self.dInputs = -y_true / dvalues
         # Normalize gradient
-        self.dinputs = self.dinputs / samples
+        self.dInputs = self.dInputs / samples
 
 
 # Softmax classifier - combined Softmax activation
@@ -128,15 +125,15 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
             y_true = np.argmax(y_true, axis=1)
 
         # Copy so we can safely modify
-        self.dinputs = dvalues.copy()
+        self.dInputs = dvalues.copy()
         # Calculate gradient
-        self.dinputs[range(samples), y_true] -= 1
+        self.dInputs[range(samples), y_true] -= 1
         # Normalize gradient
-        self.dinputs = self.dinputs / samples
+        self.dInputs = self.dInputs / samples
 
 
 # Binary cross-entropy loss
-class Loss_BinaryCrossentropy(Loss):
+class BinaryCrossentropy(Loss):
 
     # Forward pass
     def forward(self, y_pred, y_true):
@@ -165,14 +162,14 @@ class Loss_BinaryCrossentropy(Loss):
         clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
 
         # Calculate gradient
-        self.dinputs = -(y_true / clipped_dvalues -
+        self.dInputs = -(y_true / clipped_dvalues -
                          (1 - y_true) / (1 - clipped_dvalues)) / outputs
         # Normalize gradient
-        self.dinputs = self.dinputs / samples
+        self.dInputs = self.dInputs / samples
 
 
 # Mean Squared Error loss
-class Loss_MeanSquaredError(Loss):  # L2 loss
+class MeanSquaredError(Loss):  # L2 loss
 
     # Forward pass
     def forward(self, y_pred, y_true):
@@ -191,13 +188,13 @@ class Loss_MeanSquaredError(Loss):  # L2 loss
         outputs = len(dvalues[0])
 
         # Gradient on values
-        self.dinputs = -2 * (y_true - dvalues) / outputs
+        self.dInputs = -2 * (y_true - dvalues) / outputs
         # Normalize gradient
-        self.dinputs = self.dinputs / samples
+        self.dInputs = self.dInputs / samples
 
 
 # Mean Absolute Error loss
-class Loss_MeanAbsoluteError(Loss):  # L1 loss
+class MeanAbsoluteError(Loss):  # L1 loss
 
     def forward(self, y_pred, y_true):
         # Calculate loss
@@ -215,6 +212,6 @@ class Loss_MeanAbsoluteError(Loss):  # L1 loss
         outputs = len(dvalues[0])
 
         # Calculate gradient
-        self.dinputs = np.sign(y_true - dvalues) / outputs
+        self.dInputs = np.sign(y_true - dvalues) / outputs
         # Normalize gradient
-        self.dinputs = self.dinputs / samples
+        self.dInputs = self.dInputs / samples

@@ -2,7 +2,7 @@ import numpy as np
 
 
 # SGD optimizer
-class Optimizer_SGD:
+class SGD:
 
     # Initialize optimizer - set settings,
     # learning rate of 1. is default for this optimizer
@@ -22,6 +22,7 @@ class Optimizer_SGD:
     # Update parameters
     def update_params(self, layer):
 
+        # TODO: make work with a dictionary of weights
         # If we use momentum
         if self.momentum:
 
@@ -37,21 +38,19 @@ class Optimizer_SGD:
             # current gradients
             weight_updates = \
                 self.momentum * layer.weight_momentums - \
-                self.current_learning_rate * layer.dweights
+                self.current_learning_rate * layer.dWeights
             layer.weight_momentums = weight_updates
 
             # Build bias updates
             bias_updates = \
                 self.momentum * layer.bias_momentums - \
-                self.current_learning_rate * layer.dbiases
+                self.current_learning_rate * layer.dBiases
             layer.bias_momentums = bias_updates
 
         # Vanilla SGD updates (as before momentum update)
         else:
-            weight_updates = -self.current_learning_rate * \
-                             layer.dweights
-            bias_updates = -self.current_learning_rate * \
-                           layer.dbiases
+            weight_updates = -self.current_learning_rate * layer.dWeights
+            bias_updates = -self.current_learning_rate * layer.dBiases
 
         # Update weights and biases using either
         # vanilla or momentum updates
@@ -64,7 +63,7 @@ class Optimizer_SGD:
 
 
 # Adagrad optimizer
-class Optimizer_Adagrad:
+class Adagrad:
 
     # Initialize optimizer - set settings
     def __init__(self, learning_rate=1., decay=0., epsilon=1e-7):
@@ -90,16 +89,16 @@ class Optimizer_Adagrad:
             layer.bias_cache = np.zeros_like(layer.biases)
 
         # Update cache with squared current gradients
-        layer.weight_cache += layer.dweights ** 2
-        layer.bias_cache += layer.dbiases ** 2
+        layer.weight_cache += layer.dWeights ** 2
+        layer.bias_cache += layer.dBiases ** 2
 
         # Vanilla SGD parameter update + normalization
         # with square rooted cache
         layer.weights += -self.current_learning_rate * \
-                         layer.dweights / \
+                         layer.dWeights / \
                          (np.sqrt(layer.weight_cache) + self.epsilon)
         layer.biases += -self.current_learning_rate * \
-                        layer.dbiases / \
+                        layer.dBiases / \
                         (np.sqrt(layer.bias_cache) + self.epsilon)
 
     # Call once after any parameter updates
@@ -108,7 +107,7 @@ class Optimizer_Adagrad:
 
 
 # RMSprop optimizer
-class Optimizer_RMSprop:
+class RMSprop:
 
     # Initialize optimizer - set settings
     def __init__(self, learning_rate=0.001, decay=0., epsilon=1e-7,
@@ -137,17 +136,17 @@ class Optimizer_RMSprop:
 
         # Update cache with squared current gradients
         layer.weight_cache = self.rho * layer.weight_cache + \
-                             (1 - self.rho) * layer.dweights ** 2
+                             (1 - self.rho) * layer.dWeights ** 2
         layer.bias_cache = self.rho * layer.bias_cache + \
-                           (1 - self.rho) * layer.dbiases ** 2
+                           (1 - self.rho) * layer.dBiases ** 2
 
         # Vanilla SGD parameter update + normalization
         # with square rooted cache
         layer.weights += -self.current_learning_rate * \
-                         layer.dweights / \
+                         layer.dWeights / \
                          (np.sqrt(layer.weight_cache) + self.epsilon)
         layer.biases += -self.current_learning_rate * \
-                        layer.dbiases / \
+                        layer.dBiases / \
                         (np.sqrt(layer.bias_cache) + self.epsilon)
 
     # Call once after any parameter updates
@@ -156,7 +155,7 @@ class Optimizer_RMSprop:
 
 
 # Adam optimizer
-class Optimizer_Adam:
+class Adam:
 
     # Initialize optimizer - set settings
     def __init__(self, learning_rate=0.001, decay=0., epsilon=1e-7,
@@ -221,6 +220,79 @@ class Optimizer_Adam:
                         bias_momentums_corrected / \
                         (np.sqrt(bias_cache_corrected) +
                          self.epsilon)
+
+
+# Adam optimizer
+class GraphAdam:
+
+    # Initialize optimizer - set settings
+    def __init__(self, learning_rate=0.001, decay=0., epsilon=1e-7,
+                 beta_1=0.9, beta_2=0.999):
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.epsilon = epsilon
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2
+
+    # Call once before any parameter updates
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * \
+                                         (1. / (1. + self.decay * self.iterations))
+
+    # Update parameters
+    def update_params(self, layer):
+
+        # If layer does not contain cache arrays,
+        # create them filled with zeros
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_momentums = {}
+            layer.weight_cache = {}
+            for laer in layer.weights:
+                layer.weight_momentums[laer] = np.zeros_like(layer.weights[laer])
+                layer.weight_cache[laer] = np.zeros_like(layer.weights[laer])
+            layer.bias_momentums = np.zeros_like(layer.biases)
+            layer.bias_cache = np.zeros_like(layer.biases)
+
+        # TODO: (long) update layers in layer.weight_momentums
+        # TODO: (long) ^ check momentums against weights which will be maintained
+        # Update momentum with current gradients
+        for laer in layer.weight_momentums:
+            layer.weight_momentums[laer] = self.beta_1 * layer.weight_momentums[laer] + \
+                                           (1 - self.beta_1) * layer.dWeights[laer]
+        layer.bias_momentums = self.beta_1 * layer.bias_momentums + (1 - self.beta_1) * layer.dBiases
+        # Get corrected momentum
+        # self.iteration is 0 at first pass
+        # and we need to start with 1 here
+        weight_momentums_corrected = {}
+        for laer in layer.weight_momentums:
+            weight_momentums_corrected[laer] = layer.weight_momentums[laer] / \
+                                               (1 - self.beta_1 ** (self.iterations + 1))
+        bias_momentums_corrected = layer.bias_momentums / \
+                                   (1 - self.beta_1 ** (self.iterations + 1))
+        # Update cache with squared current gradients
+        for laer in layer.weight_cache:
+            layer.weight_cache[laer] = self.beta_2 * layer.weight_cache[laer] + \
+                                       (1 - self.beta_2) * layer.dWeights[laer] ** 2
+        layer.bias_cache = self.beta_2 * layer.bias_cache + \
+                           (1 - self.beta_2) * layer.dBiases ** 2
+        # Get corrected cache
+        weight_cache_corrected = {}
+        for laer in layer.weight_momentums:
+            weight_cache_corrected[laer] = layer.weight_cache[laer] / \
+                                           (1 - self.beta_2 ** (self.iterations + 1))
+        bias_cache_corrected = layer.bias_cache / \
+                               (1 - self.beta_2 ** (self.iterations + 1))
+
+        # Vanilla SGD parameter update + normalization
+        # with square rooted cache
+        for laer in layer.weights:
+            layer.weights[laer] += -self.current_learning_rate * weight_momentums_corrected[laer] / \
+                                   (np.sqrt(weight_cache_corrected[laer]) + self.epsilon)
+        layer.biases += -self.current_learning_rate * bias_momentums_corrected / \
+                        (np.sqrt(bias_cache_corrected) + self.epsilon)
 
     # Call once after any parameter updates
     def post_update_params(self):

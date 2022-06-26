@@ -1,8 +1,19 @@
 import numpy as np
 
 
+class Activation:
+    # TODO:
+    def __init__(self):
+        self.inputs = None
+        self.output = None
+        self.dInputs = None
+
+
 # ReLU activation
-class Activation_ReLU:
+class Relu(Activation):
+
+    def __init__(self):
+        super().__init__()
 
     # Forward pass
     def forward(self, inputs, training):
@@ -15,10 +26,10 @@ class Activation_ReLU:
     def backward(self, dvalues):
         # Since we need to modify original variable,
         # let's make a copy of values first
-        self.dinputs = dvalues.copy()
+        self.dInputs = dvalues.copy()
 
         # Zero gradient where input values were negative
-        self.dinputs[self.inputs <= 0] = 0
+        self.dInputs[self.inputs <= 0] = 0
 
     # Calculate predictions for outputs
     def predictions(self, outputs):
@@ -26,7 +37,10 @@ class Activation_ReLU:
 
 
 # Softmax activation
-class Activation_Softmax:
+class Softmax(Activation):
+
+    def __init__(self):
+        super().__init__()
 
     # Forward pass
     def forward(self, inputs, training):
@@ -46,7 +60,7 @@ class Activation_Softmax:
     # Backward pass
     def backward(self, dvalues):
         # Create uninitialized array
-        self.dinputs = np.empty_like(dvalues)
+        self.dInputs = np.empty_like(dvalues)
 
         # Enumerate outputs and gradients
         for index, (single_output, single_dvalues) in \
@@ -58,7 +72,7 @@ class Activation_Softmax:
                               np.dot(single_output, single_output.T)
             # Calculate sample-wise gradient
             # and add it to the array of sample gradients
-            self.dinputs[index] = np.dot(jacobian_matrix,
+            self.dInputs[index] = np.dot(jacobian_matrix,
                                          single_dvalues)
 
     # Calculate predictions for outputs
@@ -67,7 +81,10 @@ class Activation_Softmax:
 
 
 # Sigmoid activation
-class Activation_Sigmoid:
+class Sigmoid(Activation):
+
+    def __init__(self):
+        super().__init__()
 
     # Forward pass
     def forward(self, inputs, training):
@@ -79,7 +96,7 @@ class Activation_Sigmoid:
     # Backward pass
     def backward(self, dvalues):
         # Derivative - calculates from output of the sigmoid function
-        self.dinputs = dvalues * (1 - self.output) * self.output
+        self.dInputs = dvalues * (1 - self.output) * self.output
 
     # Calculate predictions for outputs
     def predictions(self, outputs):
@@ -87,7 +104,10 @@ class Activation_Sigmoid:
 
 
 # Linear activation
-class Activation_Linear:
+class Linear(Activation):
+
+    def __init__(self):
+        super().__init__()
 
     # Forward pass
     def forward(self, inputs, training):
@@ -98,7 +118,7 @@ class Activation_Linear:
     # Backward pass
     def backward(self, dvalues):
         # derivative is 1, 1 * dvalues = dvalues - the chain rule
-        self.dinputs = dvalues.copy()
+        self.dInputs = dvalues.copy()
 
     # Calculate predictions for outputs
     def predictions(self, outputs):
