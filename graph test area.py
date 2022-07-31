@@ -14,17 +14,28 @@ nnfs.init()
 X, y = spiral_data(samples=1000, classes=3)
 X_test, y_test = spiral_data(samples=100, classes=3)
 
+# Shuffle the dataset so mini batches aren't all a single class
+ind = np.arange(len(X))
+np.random.shuffle(ind)
+X = X[ind]
+y = y[ind]
+
+
 # Instantiate the model
 model = GraphModel()
 
 # Add layers
-l1 = GraphDense(512, Relu())
-l2 = GraphDense(3, Softmax())
+l1 = GraphDense(128, Relu())  # , weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
+l2 = GraphDense(128, Relu())
+l3 = GraphDense(3, Softmax())
+l4 = GraphDense(3, Softmax())
 g = {
-    l1: [l2],
-    l2: [l1]
+    l1: [],
+    l2: [l1],
+    l3: [l1],
+    l4: [l2, l3]
 }
-model.add(g, l1, l2, 2)
+model.add(g, [l1], [l4], 2)
 
 # Set loss, optimizer and accuracy objects
 model.set(
@@ -37,4 +48,8 @@ model.set(
 model.finalize()
 
 # Train the model
-model.train(X, y, validation_data=(X_test, y_test), epochs=1000, print_every=10)
+model.train(X, y,
+            validation_data=(X_test, y_test),
+            epochs=200,
+            time_series=False,
+            print_every=10)

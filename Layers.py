@@ -122,6 +122,7 @@ class GraphDense:
                  bias_regularizer_l1=0, bias_regularizer_l2=0):
         # Initialize biases and output
         self.biases = np.zeros((1, n_neurons))
+        self.dBiases = np.zeros((1, n_neurons))
         self.output = np.zeros((1, n_neurons))
         # Set regularization strength
         self.weight_regularizer_l1 = weight_regularizer_l1
@@ -135,7 +136,6 @@ class GraphDense:
         self.input_layers = set([])
         self.output_layers = set([])
         self.dWeights = {}
-        self.dBiases = None
         self.dInputs = {}
 
     def update_in(self, input_layers):
@@ -170,7 +170,7 @@ class GraphDense:
                                                             size=(layer.output.shape[-1], self.biases.shape[-1]))
                     self.dInputs[layer] = np.zeros_like(layer.output)
                     layer.update_out(self, '+')
-        # TODO: (long for when dynamic graph updates are wanted) need to update self.dWeights and self.dInputs too
+        # TODO: (short) need to update self.dWeights and self.dInputs so they can be initalized and called upon before being calculated
 
     def update_out(self, layer, option):
         if option == '+':
@@ -204,7 +204,7 @@ class GraphDense:
         for layer in self.output_layers:
             if isinstance(layer, GraphDense):
                 dValues = dValues + layer.dInputs[self]
-            else:  # IDK what this is for
+            else:  # does this support dropout layer?
                 dValues += layer.dInputs
 
         self.activation.backward(dValues)

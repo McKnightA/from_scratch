@@ -40,6 +40,41 @@ class Loss:
 
         return regularization_loss
 
+    def graph_regularization_loss(self):
+
+        # 0 by default
+        regularization_loss = 0
+
+        # Calculate regularization loss
+        # iterate all trainable layers
+        for layer in self.trainable_layers:
+
+            # L1 regularization - weights
+            # calculate only when factor greater than 0
+            if layer.weight_regularizer_l1 > 0:
+                regularization_loss += layer.weight_regularizer_l1 * \
+                                       np.sum(np.abs(np.concatenate([layer.weights[x] for x in layer.weights], axis=0)))
+
+            # L2 regularization - weights
+            if layer.weight_regularizer_l2 > 0:
+                regularization_loss += layer.weight_regularizer_l2 * \
+                                       np.sum(np.concatenate(
+                                           [layer.weights[x] * layer.weights[x] for x in layer.weights], axis=0))
+
+            # L1 regularization - biases
+            # calculate only when factor greater than 0
+            if layer.bias_regularizer_l1 > 0:
+                regularization_loss += layer.bias_regularizer_l1 * \
+                                       np.sum(np.abs(layer.biases))
+
+            # L2 regularization - biases
+            if layer.bias_regularizer_l2 > 0:
+                regularization_loss += layer.bias_regularizer_l2 * \
+                                       np.sum(layer.biases *
+                                              layer.biases)
+
+        return regularization_loss
+
     # Set/remember trainable layers
     def remember_trainable_layers(self, trainable_layers):
         self.trainable_layers = trainable_layers
@@ -59,7 +94,7 @@ class Loss:
             return data_loss
 
         # Return the data and regularization losses
-        return data_loss, self.regularization_loss()
+        return data_loss, self.graph_regularization_loss()
 
 
 # Cross-entropy loss
@@ -104,8 +139,12 @@ class CategoricalCrossentropy(Loss):
         if len(y_true.shape) == 1:
             y_true = np.eye(labels)[y_true]
 
+        # Clip data to prevent division by 0
+        # Clip both sides to not drag mean towards any value
+        dvalues_clipped = np.clip(dvalues, 1e-7, 1 - 1e-7)
+
         # Calculate gradient
-        self.dInputs = -y_true / dvalues
+        self.dInputs = -y_true / dvalues_clipped
         # Normalize gradient
         self.dInputs = self.dInputs / samples
 

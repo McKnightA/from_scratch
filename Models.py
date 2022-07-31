@@ -209,32 +209,53 @@ class GraphModel:
         self.input_layer = None
         self.trainable_layers = []
 
-    # TODO: (short) check that all values in graph are layers
-    # TODO: (long) handle receiving a list of input and/or output layers
+    # TODO: (short) check that all objects in graph are layers
     # Add objects to the model
     # All values must be lists (I guess sets would actually be good since no order is needed)
     # All elements of those lists must be layers
     def add(self, graph, input=None, output=None, num_features=0):
         g = graph.copy()
-        self.input_layer = Input(num_features)
 
-        # TODO (short) make any layer with an empty array as a value an input
+        if self.input_layer is None:
+            if num_features < 1:
+                raise ValueError("number of input features can't be less than 1 on first add() call")
+
+            self.input_layer = Input(num_features)
+
         if (input is None and self.input is None) or (output is None and self.output is None):
             raise ValueError("if the model does not already have defined input and output layers it needs them"
                              "defined")
+        if input is not None:
+            for layer in input:
+                if layer not in graph and layer not in self.layers:
+                    raise ValueError("input layers must be layers in the graph")
 
-        if (input not in graph and input not in self.layers) or (output not in graph and output not in self.layers):
-            raise ValueError("input and output layers must be layers in the graph")
+        if output is not None:
+            for layer in output:
+                if layer not in graph and layer not in self.layers:
+                    raise ValueError("output layers must be layers in the graph")
 
-        for layer_outs in graph.values():
+        # TODO: check that all objects in graph (keys and values) are layers
+
+        for layer_outs in graph.values():  # lists of layers that each layer points to
             for layer in layer_outs:
                 if layer not in self.layers.keys() and layer not in graph.keys():
                     raise ValueError("all values must be a key value in either the existing layer graph "
                                      "or the provided updates")
 
+        if self.input_layer is not None:
+            if num_features != len(self.input_layer.output):
+                self.input_layer = Input(num_features)
+
         if input is not None:
             self.input = input
-            g[self.input].append(self.input_layer)
+            for layer in self.layers:
+                if self.input_layer in g[layer]:
+                    g[layer].remove(self.input_layer)
+            for layer in input:
+                if self.input_layer not in g[layer]:
+                    g[layer].append(self.input_layer)
+
         if output is not None:
             self.output = output
 
@@ -265,9 +286,10 @@ class GraphModel:
         # Update loss object with trainable layers
         self.loss.remember_trainable_layers(self.trainable_layers)
 
-    # TODO: add a batch size parameter
     # Train the model
-    def train(self, X, y, *, epochs=1, print_every=1, validation_data=None):
+    def train(self, X, y, *, epochs=1, batch_size=64, time_series=False, print_every=1, validation_data=None):
+        if len(X) != len(y):
+            raise ValueError("data and labels must have the same length")
 
         # Initialize accuracy object
         self.metric.init(y)
@@ -275,24 +297,33 @@ class GraphModel:
         # Main training loop
         for epoch in range(1, epochs + 1):
             # Perform the forward pass
-            output = self.forward(X, training=True)
+            # outs = []
+            for i in range(batch_size, len(X), batch_size):
+                output = self.forward(X[i - batch_size:i], training=True)
 
-            # Calculate loss
-            data_loss, regularization_loss = self.loss.calculate(output, y, include_regularization=True)
-            loss = data_loss + regularization_loss
+                # Calculate loss
+                data_loss, regularization_loss = self.loss.calculate(output, y[i - batch_size:i], include_regularization=True)
+                loss = data_loss + regularization_loss
 
-            # Get predictions and calculate an accuracy
-            predictions = self.output.predictions()
-            metric = self.metric.calculate(predictions, y)
+                # store the minibatch of outputs
+                # outs.append(output)
 
-            # Perform backward pass
-            self.backward(output, y)
+                # Get predictions and calculate an accuracy
+                predictions = np.concatenate([out.predictions() for out in self.output], axis=-1)
+                metric = self.metric.calculate(predictions, y[i - batch_size:i])
 
-            # Optimize (update parameters)
-            self.optimizer.pre_update_params()
-            for layer in self.trainable_layers:
-                self.optimizer.update_params(layer)
-            self.optimizer.post_update_params()
+                # Perform backward pass
+                self.backward(output, y[i - batch_size:i])
+
+                # Optimize (update parameters)
+                self.optimizer.pre_update_params()
+                for layer in self.trainable_layers:
+                    self.optimizer.update_params(layer)
+                self.optimizer.post_update_params()
+
+                if not time_series:
+                    self.zero_grads()
+                    self.zero_outs()
 
             self.zero_grads()
             self.zero_outs()
@@ -318,7 +349,7 @@ class GraphModel:
             loss = self.loss.calculate(output, y_val)
 
             # Get predictions and calculate an accuracy
-            predictions = self.output.predictions()
+            predictions = np.concatenate([out.predictions() for out in self.output], axis=-1)
             metric = self.metric.calculate(predictions, y_val)
 
             # Print a summary
@@ -327,6 +358,7 @@ class GraphModel:
                   f'loss: {loss:.3f}')
 
     # TODO: (long) update by DF by argument
+    # TODO: (longer) update by priority first with priority determined by number of edges
     # Performs forward pass
     def forward(self, X, training):
 
@@ -336,7 +368,7 @@ class GraphModel:
         self.input_layer.forward(X, training)
 
         visited = []
-        frontier = [self.input]
+        frontier = self.input.copy()
 
         # if method == 'BF':
         # Do a breadth first update of the layer graph
@@ -351,7 +383,7 @@ class GraphModel:
                         frontier.append(next_layer)
 
         # return the last object from the list's output
-        return self.output.output
+        return np.concatenate([layer.output for layer in self.output], axis=-1)
 
     # TODO: (long) update by DF by argument
     # Performs backward pass
@@ -366,14 +398,14 @@ class GraphModel:
         # in reversed order passing dInputs as a parameter
 
         visited = []
-        frontier = [self.output]
+        frontier = self.output.copy()
 
         # if method == 'BF':
         # Do a breadth first update of the layer graph
         while len(frontier) > 0:
             current = frontier.pop(0)
             if current not in visited and not isinstance(current, Input):
-                if current == self.output:
+                if current in self.output:
                     current.backward(self.loss.dInputs)
                 else:
                     current.backward()
