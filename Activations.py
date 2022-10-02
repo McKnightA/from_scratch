@@ -2,78 +2,125 @@ import numpy as np
 
 
 class Activation:
-    """Activation methods for neural network layers"""
+    # TODO:
     def __init__(self):
-        self.name = None
-
-    def forward(self, x):
-        """The function used during forward pass of information"""
-        raise NotImplementedError("This activation function has not been implemented")
-
-    def backward(self, x):
-        """The derivative of the function used during back propogation"""
-        raise NotImplementedError("The derivative of this activation function has not been implemented")
+        self.inputs = None
+        self.output = None
+        self.dInputs = None
 
 
+# ReLU activation
 class Relu(Activation):
-    """The REctified Linear Unit activation function"""
 
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, layer):
-        """Is linear when greater than 0 and 0 when less than 0
-        x must be a numpy array"""
-        return np.maximum(0, x)
+    # Forward pass
+    def forward(self, inputs, training):
+        # Remember input values
+        self.inputs = inputs
+        # Calculate output values from inputs
+        self.output = np.maximum(0, inputs)
 
-    def backward(self, x, layer):
-        """1 when x is greater than 0 and 0 when less than or equal to 0
-        x must be a numpy array"""
-        return x > 0
+    # Backward pass
+    def backward(self, dvalues):
+        # Since we need to modify original variable,
+        # let's make a copy of values first
+        self.dInputs = dvalues.copy()
 
+        # Zero gradient where input values were negative
+        self.dInputs[self.inputs <= 0] = 0
 
-class Sigmoid(Activation):
-    """The sigmoid function that has an output constrained in [0, 1]"""
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        """applies 1/(1+e^(-x)) element wise on the passed in array.
-        normalizes the array before applying the above equation so that exponential doesn't explode"""
-        x -= np.mean(x, axis=0)
-        x /= np.std(x, axis=0)
-        return 1 / (1 + np.exp(-x))
-
-    def backward(self, x):
-        """forward(x)*(1-forward(x))"""
-        return self.forward(x) * (1 - self.forward(x))
+    # Calculate predictions for outputs
+    def predictions(self, outputs):
+        return outputs
 
 
+# Softmax activation
 class Softmax(Activation):
-    """The softmax equation of a summed group being normed so the sum totals to 1"""
 
     def __init__(self):
         super().__init__()
 
-    def forward(self, x, layer):
-        """applies e^(x)/ sum(e^(x)) element wise on the passed in array.
-        normalizes the array before applying the above equation so that exponential don't explode."""
+    # Forward pass
+    def forward(self, inputs, training):
+        # Remember input values
+        self.inputs = inputs
 
-        try:
-            x -= np.mean(x)
-        except Exception:
-            print("Found the break on np.mean in softmax forward")
-            print(x)
+        # Get unnormalized probabilities
+        exp_values = np.exp(inputs - np.max(inputs, axis=1,
+                                            keepdims=True))
 
-        try:
-            x /= np.std(x)
-        except Exception:
-            print("Found the break on np.std in softmax forward")
-            print(x)
+        # Normalize them for each sample
+        probabilities = exp_values / np.sum(exp_values, axis=1,
+                                            keepdims=True)
 
-        return np.exp(x) / np.sum(np.exp(x))
+        self.output = probabilities
 
-    def backward(self, x, layer):
-        """forward(x)*(1-forward(x))"""
-        return self.forward(x, layer) * (1 - self.forward(x, layer))
+    # Backward pass
+    def backward(self, dvalues):
+        # Create uninitialized array
+        self.dInputs = np.empty_like(dvalues)
+
+        # Enumerate outputs and gradients
+        for index, (single_output, single_dvalues) in \
+                enumerate(zip(self.output, dvalues)):
+            # Flatten output array
+            single_output = single_output.reshape(-1, 1)
+            # Calculate Jacobian matrix of the output
+            jacobian_matrix = np.diagflat(single_output) - \
+                              np.dot(single_output, single_output.T)
+            # Calculate sample-wise gradient
+            # and add it to the array of sample gradients
+            self.dInputs[index] = np.dot(jacobian_matrix,
+                                         single_dvalues)
+
+    # Calculate predictions for outputs
+    def predictions(self, outputs):
+        return np.argmax(outputs, axis=1)
+
+
+# Sigmoid activation
+class Sigmoid(Activation):
+
+    def __init__(self):
+        super().__init__()
+
+    # Forward pass
+    def forward(self, inputs, training):
+        # Save input and calculate/save output
+        # of the sigmoid function
+        self.inputs = inputs
+        self.output = 1 / (1 + np.exp(-inputs))
+
+    # Backward pass
+    def backward(self, dvalues):
+        # Derivative - calculates from output of the sigmoid function
+        self.dInputs = dvalues * (1 - self.output) * self.output
+
+    # Calculate predictions for outputs
+    def predictions(self, outputs):
+        return (outputs > 0.5) * 1
+
+
+# Linear activation
+class Linear(Activation):
+
+    def __init__(self):
+        super().__init__()
+
+    # Forward pass
+    def forward(self, inputs, training):
+        # Just remember values
+        self.inputs = inputs
+        self.output = inputs
+
+    # Backward pass
+    def backward(self, dvalues):
+        # derivative is 1, 1 * dvalues = dvalues - the chain rule
+        self.dInputs = dvalues.copy()
+
+    # Calculate predictions for outputs
+    def predictions(self, outputs):
+        return outputs
+
