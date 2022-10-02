@@ -2,11 +2,19 @@ import numpy as np
 
 
 class Activation:
-    # TODO:
     def __init__(self):
         self.inputs = None
         self.output = None
         self.dInputs = None
+
+    def forward(self, inputs, training):
+        raise NotImplementedError("You should really implement this")
+
+    def backward(self, dvalues):
+        raise NotImplementedError("You should really implement this")
+
+    def predictions(self, outputs):
+        raise NotImplementedError("You should really implement this")
 
 
 # ReLU activation
