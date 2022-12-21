@@ -34,6 +34,9 @@ class Accuracy_Categorical(Accuracy):
             y = np.argmax(y, axis=1)
         return predictions == y
 
+    def copy(self):
+        return Accuracy_Categorical(binary=self.binary)
+
 
 # Accuracy calculation for regression model
 class Accuracy_Regression(Accuracy):
@@ -51,3 +54,8 @@ class Accuracy_Regression(Accuracy):
     # Compares predictions to the ground truth values
     def compare(self, predictions, y):
         return np.absolute(predictions - y) < self.precision
+
+    def copy(self):
+        cop = Accuracy_Regression()
+        cop.precision = self.precision
+        return cop
